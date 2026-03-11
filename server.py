@@ -11,10 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 STEAM_API_KEY = os.environ.get("STEAM_API_KEY", "")
 
-mcp = FastMCP(
-    "steam-tools",
-    description="查询Steam玩家在线状态、正在玩的游戏、最近游玩记录等信息"
-)
+mcp = FastMCP("steam-tools")
 
 PERSONA_STATES = {
     0: "离线",
