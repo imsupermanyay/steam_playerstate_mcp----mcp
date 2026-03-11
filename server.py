@@ -1,10 +1,12 @@
 """
-Steam MCP Tools - 查询Steam玩家状态的MCP服务
+Steam MCP Tools - 查询Steam玩家状态和游戏服务器状态的MCP服务
 支持 stdio 本地模式 和 SSE 远程模式
 """
 import os
 import sys
+import asyncio
 import httpx
+import a2s
 from mcp.server.fastmcp import FastMCP
 
 STEAM_API_KEY = os.environ.get("STEAM_API_KEY", "")
@@ -117,6 +119,55 @@ async def get_owned_games_count(steam_id: str) -> str:
 
     count = data.get("response", {}).get("game_count", 0)
     return f"该用户共拥有 {count} 款游戏"
+
+
+@mcp.tool()
+async def query_game_server(address: str, port: int = 27015) -> str:
+    """查询Steam游戏服务器的状态信息。
+    需要提供服务器IP地址和端口号（默认27015）。
+    返回服务器名称、地图、在线人数、最大人数、延迟等信息。
+    支持所有Source引擎游戏服务器，如Garry's Mod、CS2、TF2等。"""
+    try:
+        info = await asyncio.to_thread(
+            a2s.info, (address, port), timeout=5
+        )
+    except Exception as e:
+        return f"无法连接到服务器 {address}:{port}，可能离线或地址错误: {e}"
+
+    result = (
+        f"服务器名称: {info.server_name}\n"
+        f"游戏: {info.game}\n"
+        f"当前地图: {info.map_name}\n"
+        f"在线人数: {info.player_count}/{info.max_players}\n"
+        f"延迟: {round(info.ping * 1000)}ms\n"
+        f"VAC: {'开启' if info.vac_enabled else '关闭'}\n"
+        f"需要密码: {'是' if info.password_protected else '否'}"
+    )
+    return result
+
+
+@mcp.tool()
+async def query_server_players(address: str, port: int = 27015) -> str:
+    """查询Steam游戏服务器上当前在线的玩家列表。
+    需要提供服务器IP地址和端口号（默认27015）。
+    返回每个玩家的名字和游玩时长。"""
+    try:
+        players = await asyncio.to_thread(
+            a2s.players, (address, port), timeout=5
+        )
+    except Exception as e:
+        return f"无法查询服务器 {address}:{port} 的玩家列表: {e}"
+
+    if not players:
+        return "服务器当前没有玩家在线"
+
+    lines = [f"在线玩家 ({len(players)}人):"]
+    for p in sorted(players, key=lambda x: x.duration, reverse=True):
+        hours = int(p.duration // 3600)
+        mins = int((p.duration % 3600) // 60)
+        name = p.name if p.name else "(未知)"
+        lines.append(f"  - {name}: 已游玩 {hours}h{mins}m")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
